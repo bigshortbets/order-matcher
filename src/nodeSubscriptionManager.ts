@@ -1,89 +1,43 @@
-import { Observable, gql } from '@apollo/client';
 import client from './processorSubscriptionClient';
 import { Order } from './types/Order';
 import { createPosition } from './positionCreator';
 
-
-const  MARKETS_SUBSCRIPTION= gql`
-   subscription markets {
-    markets {
-        id
-    }
-}
-`;
-const ORDERS_SUBSCRIPTION = gql`
-    subscription orders($marketId: String!) {
-        orders(
-            where: {
-                market: { id: $marketId },
-                status: OPEN,
-                _or: [
-                    {
-                        side: SHORT,
-                        price_gte: {
-                            _avg: {
-                                orders(
-                                    where: {
-                                        side: LONG,
-                                        market: { id: $marketId },
-                                        status: OPEN
-                                    },
-                                    orderBy: price_asc,
-                                    first: 1
-                                ) {
-                                    price
-                                }
-                            }
-                        }
-                    },
-                    {
-                        side: LONG,
-                        price_lte: {
-                            _avg: {
-                                orders(
-                                    where: {
-                                        side: SHORT,
-                                        market: { id: $marketId },
-                                        status: OPEN
-                                    },
-                                    orderBy: price_desc,
-                                    first: 1
-                                ) {
-                                    price
-                                }
-                            }
-                        }
-                    }
-                ]
-            }
-        ) {
-            id
-            side
-            price
-            status
-        }
-    }
-`;
-
 export const subscribeToMarkets = () => {
-    const observable = client.subscribe({
-        query: MARKETS_SUBSCRIPTION,
-    });
-    const subscription = observable.subscribe({
+    console.log("Subscribing to markets");
+    const subscription = client.subscribe({
+        query: `
+            subscription markets {
+                markets {
+                    id
+                }
+            }`
+    },
+    {
         next: (data: any) => {
-            manageMarkets(data.marketsTickers.map((item : any ) => item.id));
+            manageMarkets(data.data.markets.map((item : any ) => item.id));
         },
         error: (error : any) => {
             console.error('Market subscription error:', error);
-        }
+        },
+        complete: () => {
+            console.log('Market subscription complete');
+        },
     });
 
     return () => {
+        console.log("Unsubscribing from markets");
         subscription.unsubscribe();
     };
 }
+
 const marketSubscriptionMap : Map<string, any> = new Map();
 const manageMarkets = (markets : string[]) => {
+    console.log(markets)
+    markets.forEach((marketId: string) => {
+        if (!marketSubscriptionMap.has(marketId)) {
+            marketSubscriptionMap.set(marketId, subscribeToOrders(marketId))
+        }
+    });
     marketSubscriptionMap.forEach((value: any[], key: string) => {
         if (!markets.includes(key)) {
             value.forEach((unsubscribe: () => void) => {
@@ -92,53 +46,116 @@ const manageMarkets = (markets : string[]) => {
             marketSubscriptionMap.delete(key);
         }
     });
-    markets.forEach((marketId: string) => {
-        if (!marketSubscriptionMap.has(marketId)) {
-            marketSubscriptionMap.set(marketId, subscribeToOrders(marketId))
-        }
-    });
 }
 
 const subscribeToOrders = (marketId: string) => {
-    const observable = client.subscribe({
-        query: ORDERS_SUBSCRIPTION,
-        variables: { marketId }
-    });
-    const subscription = observable.subscribe({
-        next: (data: any) => {
-            manageOrders(data.orders, marketId);
+    console.log(`Subscribing to orders for market ${marketId}`);
+    const subscription = client.subscribe({
+        query: 
+            `subscription orders {
+                orders(where: {market: { id_eq: ${marketId} }}) {
+                    mutation
+                }
+            }`
         },
-        error: (error : any) => {
-            console.error('Order subscription error:', error);
-        }
-    });
+        {
+            next: async (data: any) => {
+                await manageOrdersChange(data, marketId);
+            },
+            error: (error : any) => {
+                console.error('Order subscription error:', error);
+            }
+        });
 
     return () => {
         subscription.unsubscribe();
     }
 }
+const manageOrdersChange = async (data: any, marketId: string) => {
+    const biggestShortOrder = await client.query({query: 
+        `query orders {
+            orders(
+                where: {
+                    market: { id_eq: ${marketId} },
+                    side_eq: SHORT,
+                    status_eq: ACTIVE 
+                },
+                orderBy: price_DESC,
+                limit: 1
+            ) {
+                price
+            }
+        }`
+    })
+    console.log(biggestShortOrder);
+    const smallestLongOrder = await client.query({query: 
+        `query orders {
+            orders(
+                where: {
+                    market: { id_eq: ${marketId} },
+                    side_eq: LONG,
+                    status_eq: ACTIVE
+                },
+                orderBy: price_ASC,
+                limit: 1
+            ) {
+                price
+            }
+        }`
+    })
+    
+    console.log(smallestLongOrder);
+    const orderBookOverlappingOrders = await client.query({query: `
+        query orders {
+            orders(
+                where: {
+                    market: { id_eq: ${marketId} },
+                    status_eq: ACTIVE,
+                    OR: [
+                        { side_eq: SHORT, price_gte: ${smallestLongOrder} },
+                        { side_eq: LONG, price_lte: ${biggestShortOrder} }
+                    ]
+                }
+            ) {
+                id
+                side
+                price
+                who
+            }
+        }
+    `})
+    console.log(orderBookOverlappingOrders);
+    manageOrders(orderBookOverlappingOrders.data.orders, marketId);
+}
 
-const manageOrders = (values: { id: string, price: bigint, amount: number, status: string, side: string }[], marketId: string) => {
+const manageOrders = async (values: { id: string, price: bigint, amount: number, status: string, side: string }[], marketId: string) => {
     const orders = values.map(value => { 
         return new Order(value.id, value.price, value.amount, value.status, value.side) 
     });
-    const sortedLongOrderIterator = orders
+    const sortedLongOrderCollection : Set<Order> = new Set(orders
         .filter(order => order.side === 'LONG')
         .sort((a : Order, b : Order) => { 
             return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
-        })
-        .values();
+        }));
 
-    const sortedShortOrdersIterator = orders
+    const sortedShortOrderCollection : Set<Order> = new Set(orders
         .filter(order => order.side === 'SHORT')
         .sort((a: Order, b: Order) => { 
             return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
-        })
-        .values();
-    // iterate over both arrays until one of them is empty
-    for(let longOrder = sortedLongOrderIterator.next(), shortOrder = sortedShortOrdersIterator.next(); 
-        !longOrder.done && !shortOrder.done; 
-        longOrder = sortedLongOrderIterator.next(), shortOrder = sortedShortOrdersIterator.next()) {
-        createPosition(marketId, longOrder.value.id, shortOrder.value.id);
+        }));
+    while(!(sortedLongOrderCollection.size === 0 || sortedShortOrderCollection.size === 0)) {
+        const nextLong = sortedLongOrderCollection.values().next().value;
+        let nextShort: Order | undefined; 
+        for(const shortOrder of sortedShortOrderCollection) {
+            if(shortOrder.who !== nextLong.who && shortOrder.price <= nextLong.price) {
+                nextShort = shortOrder;
+                break;
+            }
+        }
+        if(nextShort !== undefined) {
+            await createPosition(nextLong.id, nextShort.id, marketId);
+            sortedShortOrderCollection.delete(nextShort);
+        }
+        sortedLongOrderCollection.delete(nextLong);
     }
 }

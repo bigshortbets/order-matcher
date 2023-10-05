@@ -4,7 +4,9 @@
   "description": "utility programm made for the purpose of matching orders",
   "main": "main.ts",
   "scripts": {
-    "test": "npm  --test \"jest\""
+    "test": "npm  --test \"jest\"",
+    "start": "npm run build && node ./src/main.js",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
@@ -16,6 +18,18 @@
     "@apollo/client": "^3.8.4",
     "@polkadot/api": "^10.9.1",
     "@polkadot/keyring": "^12.5.1",
-    "@polkadot/types": "^10.9.1"
+    "@polkadot/types": "^10.9.1",
+    "graphql": "^16.8.1",
+    "graphql-tag": "^2.12.6",
+    "graphql-ws": "^5.14.1",
+    "react": "^18.2.0",
+    "subscriptions-transport-ws": "^0.11.0",
+    "websocket": "^1.0.34",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.2",
+    "@types/websocket": "^1.0.7",
+    "@types/ws": "^8.5.6"
   }
 }

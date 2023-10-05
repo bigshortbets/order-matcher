@@ -1,8 +1,19 @@
-import { ApolloClient, InMemoryCache } from '@apollo/client';
+import { ApolloClient, HttpLink, InMemoryCache, split } from '@apollo/client';
+import { getMainDefinition } from '@apollo/client/utilities';
+import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
+import { w3cwebsocket } from 'websocket';
 
-const client = new ApolloClient({
-    uri: `wss://${process.env.INDEXER_ADDRESS}/graphql` || `wss://127.0.0.1:4350/graphql`,
-    cache: new InMemoryCache()
-})
+const WebSocket = require('ws')
+const { createClient } = require('graphql-ws');
+
+const port = process.env.GQL_PORT || 4350
+const host = process.env.GQL_HOST || 'localhost'
+const proto = process.env.GQL_PROTO || 'ws'
+
+
+const client = createClient({
+  webSocketImpl: WebSocket,
+  url: `${proto}://${host}:${port}/graphql`,
+});
 
 export default client;
