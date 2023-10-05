@@ -1,4 +1,4 @@
-import { ApiPromise, HttpProvider, Keyring } from '@polkadot/api';
+import { ApiPromise, HttpProvider} from '@polkadot/api';
 let provider : HttpProvider;
 let api : any;
 export const createPosition = async (marketId: string, buyerId : string, sellerId: string) => {

@@ -5,6 +5,4 @@ initializePolkadotApi();
 subscribeToMarkets();
 
 
-// TODO: push this
 // TODO: create .env file
-// TODO: check if this works
