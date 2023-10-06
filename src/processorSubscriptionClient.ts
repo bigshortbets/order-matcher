@@ -1,14 +1,17 @@
+import { GraphQLClient } from 'graphql-request';
+import fetch from 'cross-fetch';
 const WebSocket = require('ws')
 const { createClient } = require('graphql-ws');
 
-const port = process.env.GQL_PORT || 4350
-const host = process.env.GQL_HOST || 'localhost'
-const proto = process.env.GQL_PROTO || 'ws'
-
-
-const client = createClient({
+const subClient = createClient({
   webSocketImpl: WebSocket,
-  url: `${proto}://${host}:${port}/graphql`,
+  url: (process.env.WS_PROVIDER_URL as string) + "/graphql",
+});
+const queryClient = new GraphQLClient((process.env.HTTP_PROVIDER_URL as string) + "/graphql", {
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  fetch
 });
 
-export default client;
+export {queryClient, subClient};

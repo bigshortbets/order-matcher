@@ -1,10 +1,10 @@
 import { Order } from './types/Order';
 import { createPosition } from './positionCreator';
-import client from './processorSubscriptionClient';
+import {subClient, queryClient} from './processorSubscriptionClient';
 
 export const subscribeToMarkets = () => {
     console.log("Subscribing to markets");
-    const subscription = client.subscribe({
+    const subscription = subClient.subscribe({
         query: `
             subscription markets {
                 markets {
@@ -50,7 +50,7 @@ const manageMarkets = (markets : string[]) => {
 
 const subscribeToOrders = (marketId: string) => {
     console.log(`Subscribing to orders for market ${marketId}`);
-    const subscription = client.subscribe({
+    const subscription = subClient.subscribe({
         query: 
             `subscription orders {
                 orders(limit: 1, where: {market: {id_eq: "${marketId}"}}, orderBy: timestamp_DESC) {
@@ -73,11 +73,11 @@ const subscribeToOrders = (marketId: string) => {
 }
 const manageOrdersChange = async (data: any, marketId: string) => {
     console.log("Order change detected");
-    const biggestShortOrder = await client.request(
+    const biggestShortOrder = await queryClient.request(
         `query orders {
             orders(
                 where: {
-                    market: { id_eq: ${marketId} },
+                    market: { id_eq: "${marketId}" },
                     side_eq: SHORT,
                     status_eq: ACTIVE 
                 },
@@ -88,12 +88,11 @@ const manageOrdersChange = async (data: any, marketId: string) => {
             }
         }`
     )
-    console.log(biggestShortOrder);
-    const smallestLongOrder = await client.request( 
+    const smallestLongOrder = await queryClient.request( 
         `query orders {
             orders(
                 where: {
-                    market: { id_eq: ${marketId} },
+                    market: { id_eq: "${marketId}" },
                     side_eq: LONG,
                     status_eq: ACTIVE
                 },
@@ -105,12 +104,11 @@ const manageOrdersChange = async (data: any, marketId: string) => {
         }`
     )
     
-    console.log(smallestLongOrder);
-    const orderBookOverlappingOrders = await client.request(`
+    const orderBookOverlappingOrders = await queryClient.request(`
         query orders {
             orders(
                 where: {
-                    market: { id_eq: ${marketId} },
+                    market: { id_eq: "${marketId}" },
                     status_eq: ACTIVE,
                     OR: [
                         { side_eq: SHORT, price_gte: ${smallestLongOrder} },
@@ -125,31 +123,33 @@ const manageOrdersChange = async (data: any, marketId: string) => {
             }
         }
     `)
-    console.log(orderBookOverlappingOrders);
-    manageOrders((orderBookOverlappingOrders as any).data.orders, marketId);
+    manageOrders((orderBookOverlappingOrders as any).orders, marketId);
 }
 
-const manageOrders = async (values: { id: string, price: bigint, amount: number, status: string, side: string }[], marketId: string) => {
+const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
     const orders = values.map(value => { 
-        return new Order(value.id, value.price, value.amount, value.status, value.side) 
+        return new Order(value.id, value.price, value.who, value.side) 
     });
     const sortedLongOrderCollection : Set<Order> = new Set(orders
         .filter(order => order.side === 'LONG')
         .sort((a : Order, b : Order) => { 
             return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
         }));
-
+    console.log(sortedLongOrderCollection);
     const sortedShortOrderCollection : Set<Order> = new Set(orders
         .filter(order => order.side === 'SHORT')
         .sort((a: Order, b: Order) => { 
             return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
         }));
+    console.log(sortedShortOrderCollection);
     while(!(sortedLongOrderCollection.size === 0 || sortedShortOrderCollection.size === 0)) {
         const nextLong = sortedLongOrderCollection.values().next().value;
+        console.log(nextLong);
         let nextShort: Order | undefined; 
         for(const shortOrder of sortedShortOrderCollection) {
             if(shortOrder.who !== nextLong.who && shortOrder.price <= nextLong.price) {
                 nextShort = shortOrder;
+                console.log(nextShort);
                 break;
             }
         }
