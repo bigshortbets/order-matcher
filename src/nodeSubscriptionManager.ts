@@ -1,6 +1,6 @@
-import client from './processorSubscriptionClient';
 import { Order } from './types/Order';
 import { createPosition } from './positionCreator';
+import client from './processorSubscriptionClient';
 
 export const subscribeToMarkets = () => {
     console.log("Subscribing to markets");
@@ -53,8 +53,8 @@ const subscribeToOrders = (marketId: string) => {
     const subscription = client.subscribe({
         query: 
             `subscription orders {
-                orders(where: {market: { id_eq: ${marketId} }}) {
-                    mutation
+                orders(limit: 1, where: {market: {id_eq: "${marketId}"}}, orderBy: timestamp_DESC) {
+                    id
                 }
             }`
         },
@@ -72,7 +72,8 @@ const subscribeToOrders = (marketId: string) => {
     }
 }
 const manageOrdersChange = async (data: any, marketId: string) => {
-    const biggestShortOrder = await client.query({query: 
+    console.log("Order change detected");
+    const biggestShortOrder = await client.request(
         `query orders {
             orders(
                 where: {
@@ -86,9 +87,9 @@ const manageOrdersChange = async (data: any, marketId: string) => {
                 price
             }
         }`
-    })
+    )
     console.log(biggestShortOrder);
-    const smallestLongOrder = await client.query({query: 
+    const smallestLongOrder = await client.request( 
         `query orders {
             orders(
                 where: {
@@ -102,10 +103,10 @@ const manageOrdersChange = async (data: any, marketId: string) => {
                 price
             }
         }`
-    })
+    )
     
     console.log(smallestLongOrder);
-    const orderBookOverlappingOrders = await client.query({query: `
+    const orderBookOverlappingOrders = await client.request(`
         query orders {
             orders(
                 where: {
@@ -123,9 +124,9 @@ const manageOrdersChange = async (data: any, marketId: string) => {
                 who
             }
         }
-    `})
+    `)
     console.log(orderBookOverlappingOrders);
-    manageOrders(orderBookOverlappingOrders.data.orders, marketId);
+    manageOrders((orderBookOverlappingOrders as any).data.orders, marketId);
 }
 
 const manageOrders = async (values: { id: string, price: bigint, amount: number, status: string, side: string }[], marketId: string) => {
