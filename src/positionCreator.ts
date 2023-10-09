@@ -3,7 +3,7 @@ let provider : HttpProvider;
 let api : any;
 
 export const createPosition = async (marketId: string, sellerId: string, buyerId : string) => {
-    console.log("Attempting to create position for: market id: ${marketId}, seller id: ${sellerId}, buyer id: ${buyerId}");
+    console.log(`Attempting to create position for: market id: ${marketId}, seller id: ${sellerId}, buyer id: ${buyerId}`);
     console.log(buyerId, sellerId, marketId);   
     const position = await api.tx.market.createPosition(marketId, sellerId, buyerId);
     try {
