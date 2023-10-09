@@ -19,6 +19,7 @@
     "@polkadot/api": "^10.9.1",
     "@polkadot/keyring": "^12.5.1",
     "@polkadot/types": "^10.9.1",
+    "@types/dotenv": "^8.2.0",
     "cross-fetch": "^4.0.0",
     "dotenv": "^16.3.1",
     "graphql": "^16.8.1",
