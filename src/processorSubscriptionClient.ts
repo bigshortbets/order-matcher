@@ -5,9 +5,9 @@ const { createClient } = require('graphql-ws');
 
 const subClient = createClient({
   webSocketImpl: WebSocket,
-  url: (process.env.WS_PROVIDER_URL as string) + "/graphql",
+  url: (process.env.WS_PROVIDER_URL || "ws://localhost:4350")  + "/graphql",
 });
-const queryClient = new GraphQLClient((process.env.HTTP_PROVIDER_URL as string) + "/graphql", {
+const queryClient = new GraphQLClient((process.env.HTTP_PROVIDER_URL || "http://localhost:4350") + "/graphql", {
   headers: {
     'Content-Type': 'application/json',
   },
