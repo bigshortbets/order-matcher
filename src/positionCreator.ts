@@ -1,4 +1,4 @@
-import { ApiPromise, HttpProvider} from '@polkadot/api';
+import { ApiPromise, HttpProvider, WsProvider} from '@polkadot/api';
 let provider : HttpProvider;
 let api : any;
 
@@ -14,7 +14,18 @@ export const createPosition = async (marketId: string, sellerId: string, buyerId
 }
 
 export const initializePolkadotApi = async () => { 
-    provider = new HttpProvider(process.env.SUBSTRATE_NODE_URL as string)
-    api = await  ApiPromise.create()
+    let provider : any;
+    const providerAddress = process.env.NODE_PROVIDER_PROTO as string + "://" + process.env.NODE_PROVIDER_ADDRESS as string;
+    switch(process.env.NODE_PROVIDER_PROTO) {
+        case "http":
+            provider = new HttpProvider(providerAddress)
+            break;
+        case "ws":
+            provider = new WsProvider(providerAddress)
+            break;
+        default:
+            console.error("Invalid node provider protocol")
+    } 
+    api = await ApiPromise.create({provider: provider})
     console.log("Polkadot Api created")
 }
