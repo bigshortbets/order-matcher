@@ -88,6 +88,7 @@ const manageOrdersChange = async (data: any, marketId: string) => {
             }
         }`
     )
+    console.log("Biggest short order: ", biggestShortOrder);
     const smallestLongOrder = await queryClient.request( 
         `query orders {
             orders(
@@ -104,29 +105,41 @@ const manageOrdersChange = async (data: any, marketId: string) => {
         }`
     )
     
-    const orderBookOverlappingOrders = await queryClient.request(`
-        query orders {
-            orders(
-                where: {
-                    market: { id_eq: "${marketId}" },
-                    status_eq: ACTIVE,
-                    OR: [
-                        { side_eq: SHORT, price_gte: ${smallestLongOrder} },
-                        { side_eq: LONG, price_lte: ${biggestShortOrder} }
-                    ]
+    console.log("Smallest long order: ", smallestLongOrder);
+    var orderBookOverlappingOrders : any;
+    // TODO: this query - troubleshoot
+    if(smallestLongOrder !== undefined && biggestShortOrder !== undefined) {	
+        orderBookOverlappingOrders = await queryClient.request(`
+            query orders {
+                orders(
+                    where: {
+                        market: { id_eq: "${marketId}" },
+                        status_eq: ACTIVE,
+                        OR: [
+                            AND: [
+                                { side_eq: SHORT, price_gte: ${smallestLongOrder} }, 
+                                { side_eq: SHORT, price_lte: ${biggestShortOrder} },
+                            ],
+                            AND: [
+                                { side_eq: LONG, price_gte: ${smallestLongOrder} },
+                                { side_eq: LONG, price_lte: ${biggestShortOrder} }
+                            ]
+                        ]
+                    }
+                ) {
+                    id
+                    side
+                    price
+                    who
                 }
-            ) {
-                id
-                side
-                price
-                who
             }
-        }
-    `)
-    manageOrders((orderBookOverlappingOrders as any).orders, marketId);
+        `)
+        manageOrders((orderBookOverlappingOrders as any).orders, marketId);
+    }
 }
 
 const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
+    console.log("____________________________________________________________________________________________________")
     const orders = values.map(value => { 
         return new Order(value.id, value.price, value.who, value.side) 
     });
