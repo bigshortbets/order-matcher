@@ -71,75 +71,76 @@ const subscribeToOrders = (marketId: string) => {
         subscription.unsubscribe();
     }
 }
-const manageOrdersChange = async (data: any, marketId: string) => {
-    console.log("Order change detected");
-    const biggestShortOrder = await queryClient.request(
-        `query orders {
-            orders(
-                where: {
-                    market: { id_eq: "${marketId}" },
-                    side_eq: SHORT,
-                    status_eq: ACTIVE 
-                },
-                orderBy: price_DESC,
-                limit: 1
-            ) {
-                price
-            }
-        }`
-    )
-    console.log("Biggest short order: ", biggestShortOrder);
-    const smallestLongOrder = await queryClient.request( 
-        `query orders {
-            orders(
-                where: {
-                    market: { id_eq: "${marketId}" },
-                    side_eq: LONG,
-                    status_eq: ACTIVE
-                },
-                orderBy: price_ASC,
-                limit: 1
-            ) {
-                price
-            }
-        }`
-    )
-    
-    console.log("Smallest long order: ", smallestLongOrder);
-    var orderBookOverlappingOrders : any;
-    // TODO: this query - troubleshoot
-    if(smallestLongOrder !== undefined && biggestShortOrder !== undefined) {	
-        orderBookOverlappingOrders = await queryClient.request(`
-            query orders {
+const getOrderBookOverlap = async (marketId: string) => {
+    const cheapestShortOrder = await queryClient.request(
+            `query orders {
                 orders(
                     where: {
                         market: { id_eq: "${marketId}" },
-                        status_eq: ACTIVE,
-                        OR: [
-                            AND: [
-                                { side_eq: SHORT, price_gte: ${smallestLongOrder} }, 
-                                { side_eq: SHORT, price_lte: ${biggestShortOrder} },
-                            ],
-                            AND: [
-                                { side_eq: LONG, price_gte: ${smallestLongOrder} },
-                                { side_eq: LONG, price_lte: ${biggestShortOrder} }
-                            ]
-                        ]
-                    }
+                        side_eq: SHORT,
+                        status_eq: ACTIVE 
+                    },
+                    orderBy: price_ASC,
+                    limit: 1
                 ) {
-                    id
-                    side
                     price
-                    who
                 }
-            }
-        `)
-        manageOrders((orderBookOverlappingOrders as any).orders, marketId);
+            }`
+        )
+        
+        console.log("Cheapest short order: ", cheapestShortOrder);
+        const mostExpensiveLongOrder = await queryClient.request( 
+            `query orders {
+                orders(
+                    where: {
+                        market: { id_eq: "${marketId}" },
+                        side_eq: LONG,
+                        status_eq: ACTIVE
+                    },
+                    orderBy: price_DESC,
+                    limit: 1
+                ) {
+                    price
+                }
+            }`
+        )
+        
+        console.log("Most expensive long order:  ", mostExpensiveLongOrder);
+        var orderBookOverlappingOrders : any;
+        if(mostExpensiveLongOrder !== undefined && cheapestShortOrder !== undefined) {	
+            return orderBookOverlappingOrders = await queryClient.request(`
+                query orders {
+                    orders(
+                        where: {
+                            market: { id_eq: "${marketId}" },
+                            status_eq: ACTIVE,
+                            OR: [
+                                { side_eq: SHORT, price_lte: ${mostExpensiveLongOrder} }, 
+                                { side_eq: LONG, price_gte: ${cheapestShortOrder} }
+                            ]
+                        }
+                    ) {
+                        id
+                        side
+                        price
+                        who
+                    }
+                }
+            `)
+        } else { return undefined; }
+}
+
+const manageOrdersChange = async (data: any, marketId: string) => {
+    console.log("Order change detected");
+    console.log("------------------------------------------------ITERATION STARTED------------------------------------------------")
+    const overlappingOrders = await getOrderBookOverlap(marketId); 
+    if(overlappingOrders) {
+        await manageOrders((overlappingOrders as any).orders, marketId);
     }
+    console.log("-----------------------------------------------ITERATION ENDED---------------------------------------------------")
 }
 
 const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
-    console.log("____________________________________________________________________________________________________")
     const orders = values.map(value => { 
         return new Order(value.id, value.price, value.who, value.side) 
     });
@@ -148,14 +149,12 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
         .sort((a : Order, b : Order) => { 
             return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
         }));
-    console.log(sortedLongOrderCollection);
     const sortedShortOrderCollection : Set<Order> = new Set(orders
         .filter(order => order.side === 'SHORT')
         .sort((a: Order, b: Order) => { 
             return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
         }));
-    console.log(sortedShortOrderCollection);
-    while(!(sortedLongOrderCollection.size === 0 || sortedShortOrderCollection.size === 0)) {
+    while(sortedLongOrderCollection.size > 0 && sortedShortOrderCollection.size > 0) {
         const nextLong = sortedLongOrderCollection.values().next().value;
         console.log(nextLong);
         let nextShort: Order | undefined; 
@@ -170,6 +169,7 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
             await createPosition(marketId, nextShort.id, nextLong.id);
             sortedShortOrderCollection.delete(nextShort);
         }
-        sortedLongOrderCollection.delete(nextLong); // Long will be deleted anyway: if there is no short, it will be deleted because there is no match, if there is it would be consumed
+        // Long will be deleted anyway: if there is no short, it will be deleted because there is no match, if there is it would be consumed
+        sortedLongOrderCollection.delete(nextLong);
     }
 }
