@@ -28,5 +28,5 @@ export const initializePolkadotApi = async () => {
             console.error("Invalid node provider protocol")
     } 
     api = await ApiPromise.create({provider: provider})
-    console.log("Polkadot Api created")
+    console.log("Polkadot Api initialized")
 }

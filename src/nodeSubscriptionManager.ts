@@ -106,9 +106,8 @@ const getOrderBookOverlap = async (marketId: string) => {
         )
         
         console.log("Most expensive long order:  ", mostExpensiveLongOrder);
-        var orderBookOverlappingOrders : any;
         if(mostExpensiveLongOrder !== undefined && cheapestShortOrder !== undefined) {	
-            return orderBookOverlappingOrders = await queryClient.request(`
+            return await queryClient.request(`
                 query orders {
                     orders(
                         where: {
@@ -141,35 +140,38 @@ const manageOrdersChange = async (data: any, marketId: string) => {
 }
 
 const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
+    
     const orders = values.map(value => { 
         return new Order(value.id, value.price, value.who, value.side) 
     });
-    const sortedLongOrderCollection : Set<Order> = new Set(orders
-        .filter(order => order.side === 'LONG')
-        .sort((a : Order, b : Order) => { 
-            return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
-        }));
-    const sortedShortOrderCollection : Set<Order> = new Set(orders
-        .filter(order => order.side === 'SHORT')
-        .sort((a: Order, b: Order) => { 
-            return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
-        }));
+
+    const sortedLongOrderCollection = getSortedOrdersBySide(orders, 'LONG');
+    const sortedShortOrderCollection = getSortedOrdersBySide(orders, 'SHORT');
+
     while(sortedLongOrderCollection.size > 0 && sortedShortOrderCollection.size > 0) {
         const nextLong = sortedLongOrderCollection.values().next().value;
-        console.log(nextLong);
         let nextShort: Order | undefined; 
         for(const shortOrder of sortedShortOrderCollection) {
             if(shortOrder.who !== nextLong.who && shortOrder.price <= nextLong.price) {
                 nextShort = shortOrder;
-                console.log(nextShort);
                 break;
             }
         }
         if(nextShort !== undefined) {
+            console.log(nextLong);
+            console.log(nextShort);
             await createPosition(marketId, nextShort.id, nextLong.id);
             sortedShortOrderCollection.delete(nextShort);
         }
         // Long will be deleted anyway: if there is no short, it will be deleted because there is no match, if there is it would be consumed
         sortedLongOrderCollection.delete(nextLong);
     }
+}
+
+const getSortedOrdersBySide = (orders: Order[], side: string) : Set<Order> => {
+    return new Set(orders
+        .filter(order => order.side === side)
+        .sort((a : Order, b : Order) => { 
+            return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
+        }));
 }
