@@ -140,13 +140,13 @@ const manageOrdersChange = async (data: any, marketId: string) => {
 }
 
 const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
-    
+
     const orders = values.map(value => { 
         return new Order(value.id, value.price, value.who, value.side) 
     });
 
-    const sortedLongOrderCollection = getSortedOrdersBySide(orders, 'LONG');
-    const sortedShortOrderCollection = getSortedOrdersBySide(orders, 'SHORT');
+    const sortedLongOrderCollection = getOrdersPerSideSortedByPrice(orders, 'LONG');
+    const sortedShortOrderCollection = getOrdersPerSideSortedByPrice(orders, 'SHORT');
 
     while(sortedLongOrderCollection.size > 0 && sortedShortOrderCollection.size > 0) {
         const nextLong = sortedLongOrderCollection.values().next().value;
@@ -168,7 +168,7 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
     }
 }
 
-const getSortedOrdersBySide = (orders: Order[], side: string) : Set<Order> => {
+const getOrdersPerSideSortedByPrice = (orders: Order[], side: string) : Set<Order> => {
     return new Set(orders
         .filter(order => order.side === side)
         .sort((a : Order, b : Order) => { 
