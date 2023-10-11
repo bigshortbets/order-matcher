@@ -1,5 +1,4 @@
 import { ApiPromise, HttpProvider, WsProvider} from '@polkadot/api';
-let provider : HttpProvider;
 let api : any;
 
 export const createPosition = async (marketId: string, sellerId: string, buyerId : string) => {
