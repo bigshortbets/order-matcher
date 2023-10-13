@@ -18,9 +18,11 @@ export const initializePolkadotApi = async () => {
     const providerAddress = process.env.NODE_PROVIDER_PROTO as string + "://" + process.env.NODE_PROVIDER_ADDRESS as string;
     switch(process.env.NODE_PROVIDER_PROTO) {
         case "http":
+        case "https":
             provider = new HttpProvider(providerAddress)
             break;
         case "ws":
+        case "wss":
             provider = new WsProvider(providerAddress)
             break;
         default:
