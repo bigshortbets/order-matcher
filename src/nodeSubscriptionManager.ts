@@ -160,7 +160,12 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
         if(nextShort !== undefined) {
             console.log(nextLong);
             console.log(nextShort);
-            await createPosition(marketId, nextShort.id, nextLong.id);
+            try {
+                await createPosition(marketId, nextShort.id, nextLong.id);
+            } catch (error) {
+                console.error(error);
+                process.exit(0);
+            }
             sortedShortOrderCollection.delete(nextShort);
         }
         // Long will be deleted anyway: if there is no short, it will be deleted because there is no match, if there is it would be consumed
