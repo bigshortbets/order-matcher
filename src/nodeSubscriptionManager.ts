@@ -177,6 +177,6 @@ const getOrdersPerSideSortedByPrice = (orders: Order[], side: string) : Set<Orde
     return new Set(orders
         .filter(order => order.side === side)
         .sort((a : Order, b : Order) => { 
-            return BigInt(a.price).toString().localeCompare(BigInt(b.price).toString());
+            return a.price.toString().localeCompare(b.price.toString());
         }));
 }
