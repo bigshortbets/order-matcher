@@ -39,12 +39,12 @@ const manageMarkets = (markets : string[]) => {
         }
     });
     marketSubscriptionMap.forEach((value: any[], key: string) => {
-        if (!markets.includes(key)) {
-            value.forEach((unsubscribe: () => void) => {
-                unsubscribe();
-            });
-            marketSubscriptionMap.delete(key);
-        }
+        if (Array.isArray(value) && !markets.includes(key)) {
+        value.forEach((unsubscribe: () => void) => {
+            unsubscribe();
+        });
+        marketSubscriptionMap.delete(key);
+    }
     });
 }
 
