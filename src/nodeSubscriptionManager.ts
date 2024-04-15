@@ -147,29 +147,19 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
 
     const sortedLongOrderCollection = getOrdersPerSideSortedByPrice(orders, 'LONG');
     const sortedShortOrderCollection = getOrdersPerSideSortedByPrice(orders, 'SHORT');
-
-    while(sortedLongOrderCollection.size > 0 && sortedShortOrderCollection.size > 0) {
-        const nextLong = sortedLongOrderCollection.values().next().value;
-        let nextShort: Order | undefined; 
+  
+    for(const nextLong of sortedLongOrderCollection) {
         for(const shortOrder of sortedShortOrderCollection) {
             if(shortOrder.who !== nextLong.who && shortOrder.price <= nextLong.price) {
-                nextShort = shortOrder;
-                break;
+                console.log(nextLong);
+                try {
+                    await createPosition(marketId, shortOrder.id, nextLong.id);
+                } catch (error) {
+                    console.error(error);
+                    process.exit(0);
+                }
             }
         }
-        if(nextShort !== undefined) {
-            console.log(nextLong);
-            console.log(nextShort);
-            try {
-                await createPosition(marketId, nextShort.id, nextLong.id);
-            } catch (error) {
-                console.error(error);
-                process.exit(0);
-            }
-            sortedShortOrderCollection.delete(nextShort);
-        }
-        // Long will be deleted anyway: if there is no short, it will be deleted because there is no match, if there is it would be consumed
-        sortedLongOrderCollection.delete(nextLong);
     }
 }
 
