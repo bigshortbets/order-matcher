@@ -2,14 +2,21 @@ import { ApiPromise, HttpProvider, WsProvider} from '@polkadot/api';
 let api : any;
 
 export const createPosition = async (marketId: string, sellerId: string, buyerId : string) => {
-    console.info(`Attempting to create position for: market id: ${marketId}, seller id: ${sellerId}, buyer id: ${buyerId}`);
+    console.info(
+      `${marketId} | Attempting to create position for: market id: ${marketId}, seller id: ${sellerId}, buyer id: ${buyerId}`
+    );
     const position = await api.tx.market.createPosition(marketId, sellerId, buyerId);
     try {
         await position.send();
-        console.info(`Position created, market id: ${marketId}, seller id: ${sellerId}, buyer id: ${buyerId}`);
+        console.info(
+          `${marketId} | Position created, market id: ${marketId}, seller id: ${sellerId}, buyer id: ${buyerId}`
+        );
     }
-    catch (error) { 
-        console.error(`Error caught during position creation, for market id: ${marketId}: seller id: ${sellerId}, buyer id: ${buyerId}.\nError text:\n`, error) 
+    catch (error: any) { 
+        console.error(
+          `${marketId} | Error caught during position creation, for market id: ${marketId}: seller id: ${sellerId}, buyer id: ${buyerId}.\nError text:\n`,
+          error.message
+        ); 
     }
 }
 
