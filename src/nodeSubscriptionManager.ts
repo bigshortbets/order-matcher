@@ -88,7 +88,7 @@ const getOrderBookOverlap = async (marketId: string) => {
             }`
         )
         
-        console.log("Cheapest short order: ", cheapestShortOrder);
+        console.log(`${marketId} | Cheapest short order: `, cheapestShortOrder);
         const mostExpensiveLongOrder = await queryClient.request( 
             `query orders {
                 orders(
@@ -105,7 +105,7 @@ const getOrderBookOverlap = async (marketId: string) => {
             }`
         )
         
-        console.log("Most expensive long order:  ", mostExpensiveLongOrder);
+        console.log(`${marketId} | Most expensive long order:  `, mostExpensiveLongOrder);
         if(mostExpensiveLongOrder !== undefined && cheapestShortOrder !== undefined) {	
             return await queryClient.request(`
                 query orders {
@@ -130,13 +130,11 @@ const getOrderBookOverlap = async (marketId: string) => {
 }
 
 const manageOrdersChange = async (data: any, marketId: string) => {
-    console.log("Order change detected");
-    console.log("------------------------------------------------ITERATION STARTED------------------------------------------------")
+    console.log(`${marketId} | Order change detected`);
     const overlappingOrders = await getOrderBookOverlap(marketId); 
     if(overlappingOrders) {
         await manageOrders((overlappingOrders as any).orders, marketId);
     }
-    console.log("-----------------------------------------------ITERATION ENDED---------------------------------------------------")
 }
 
 const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
