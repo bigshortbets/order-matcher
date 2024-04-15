@@ -88,7 +88,7 @@ const getOrderBookOverlap = async (marketId: string) => {
             }`
         )
         
-        console.log("Cheapest short order: ", cheapestShortOrder);
+        console.log(`${marketId} | Cheapest short order: `, cheapestShortOrder);
         const mostExpensiveLongOrder = await queryClient.request( 
             `query orders {
                 orders(
@@ -105,7 +105,7 @@ const getOrderBookOverlap = async (marketId: string) => {
             }`
         )
         
-        console.log("Most expensive long order:  ", mostExpensiveLongOrder);
+        console.log(`${marketId} | Most expensive long order:  `, mostExpensiveLongOrder);
         if(mostExpensiveLongOrder !== undefined && cheapestShortOrder !== undefined) {	
             return await queryClient.request(`
                 query orders {
@@ -130,13 +130,11 @@ const getOrderBookOverlap = async (marketId: string) => {
 }
 
 const manageOrdersChange = async (data: any, marketId: string) => {
-    console.log("Order change detected");
-    console.log("------------------------------------------------ITERATION STARTED------------------------------------------------")
+    console.log(`${marketId} | Order change detected`);
     const overlappingOrders = await getOrderBookOverlap(marketId); 
     if(overlappingOrders) {
         await manageOrders((overlappingOrders as any).orders, marketId);
     }
-    console.log("-----------------------------------------------ITERATION ENDED---------------------------------------------------")
 }
 
 const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
@@ -147,29 +145,19 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
 
     const sortedLongOrderCollection = getOrdersPerSideSortedByPrice(orders, 'LONG');
     const sortedShortOrderCollection = getOrdersPerSideSortedByPrice(orders, 'SHORT');
-
-    while(sortedLongOrderCollection.size > 0 && sortedShortOrderCollection.size > 0) {
-        const nextLong = sortedLongOrderCollection.values().next().value;
-        let nextShort: Order | undefined; 
+  
+    for(const nextLong of sortedLongOrderCollection) {
         for(const shortOrder of sortedShortOrderCollection) {
             if(shortOrder.who !== nextLong.who && shortOrder.price <= nextLong.price) {
-                nextShort = shortOrder;
-                break;
+                console.log(nextLong);
+                try {
+                    await createPosition(marketId, shortOrder.id, nextLong.id);
+                } catch (error) {
+                    console.error(error);
+                    process.exit(0);
+                }
             }
         }
-        if(nextShort !== undefined) {
-            console.log(nextLong);
-            console.log(nextShort);
-            try {
-                await createPosition(marketId, nextShort.id, nextLong.id);
-            } catch (error) {
-                console.error(error);
-                process.exit(0);
-            }
-            sortedShortOrderCollection.delete(nextShort);
-        }
-        // Long will be deleted anyway: if there is no short, it will be deleted because there is no match, if there is it would be consumed
-        sortedLongOrderCollection.delete(nextLong);
     }
 }
 
