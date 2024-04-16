@@ -148,14 +148,17 @@ const manageOrders = async (values: { id: string, price: bigint, who: string, si
   
     for(const nextLong of sortedLongOrderCollection) {
         for(const shortOrder of sortedShortOrderCollection) {
-            if(shortOrder.who !== nextLong.who && shortOrder.price <= nextLong.price) {
-                console.log(nextLong);
-                try {
-                    await createPosition(marketId, shortOrder.id, nextLong.id);
-                } catch (error) {
-                    console.error(error);
-                    process.exit(0);
-                }
+            if (
+              shortOrder.who !== nextLong.who &&
+              Number(shortOrder.price) <= Number(nextLong.price)
+            ) {
+              console.log(nextLong);
+              try {
+                await createPosition(marketId, shortOrder.id, nextLong.id);
+              } catch (error) {
+                console.error(error);
+                process.exit(0);
+              }
             }
         }
     }
