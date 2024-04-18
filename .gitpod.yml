@@ -1,0 +1,11 @@
+additionalRepositories:
+  - url: https://github.com/bigshortbets/delayed-oracle.git
+    checkoutLocation: delayed-oracle
+
+tasks:
+  - name: order_matcher
+    init: cd order-matcher && npm install
+    command: npm start
+  - name: delayed_oracle
+    init: cd delayed-oracle && npm install
+    command: npm start
