@@ -1,79 +1,80 @@
-import { Order } from './types/Order';
-import { createPosition } from './positionCreator';
-import {subClient, queryClient} from './processorSubscriptionClient';
+import { Order } from "./types/Order";
+import { createPosition } from "./positionCreator";
+import { subClient, queryClient } from "./processorSubscriptionClient";
+import { MarketData, OrderData } from "./types/graphql";
 
-export const subscribeToMarkets = () => {
-    console.log("Subscribing to markets");
-    const subscription = subClient.subscribe({
-        query: `
-            subscription markets {
-                markets {
-                    id
-                }
-            }`
-    },
-    {
-        next: (data: any) => {
-            manageMarkets(data.data.markets.map((item : any ) => item.id));
-        },
-        error: (error : any) => {
-            console.error('Market subscription error:', error);
-        },
-        complete: () => {
-            console.log('Market subscription complete');
-        },
-    });
-
-    return () => {
-        console.log("Unsubscribing from markets");
-        subscription.unsubscribe();
-    };
-}
-
-const marketSubscriptionMap : Map<string, any> = new Map();
-const manageMarkets = (markets : string[]) => {
-    console.log(markets)
-    markets.forEach((marketId: string) => {
-        if (!marketSubscriptionMap.has(marketId)) {
-            marketSubscriptionMap.set(marketId, subscribeToOrders(marketId))
-        }
-    });
-    marketSubscriptionMap.forEach((value: any[], key: string) => {
-        if (Array.isArray(value) && !markets.includes(key)) {
-        value.forEach((unsubscribe: () => void) => {
-            unsubscribe();
-        });
-        marketSubscriptionMap.delete(key);
+export const subscribeToMarkets = async () => {
+  console.log("Subscribing to markets");
+  let previousBlockHeight = 0;
+  setInterval(async () => {
+    const query: MarketData = await queryClient.request(
+      `query markets {
+  markets(where: {blockHeight_gte: ${previousBlockHeight}}) {
+    id
+    blockHeight
+  }
+  squidStatus {
+    height
+  }
+}`
+    );
+    if (query.markets.length > 0) {
+      manageMarkets(query.markets.map((item: any) => item.id));
     }
-    });
-}
 
-const subscribeToOrders = (marketId: string) => {
-    console.log(`Subscribing to orders for market ${marketId}`);
-    const subscription = subClient.subscribe({
-        query: 
-            `subscription orders {
-                orders(limit: 1, where: {market: {id_eq: "${marketId}"}}, orderBy: timestamp_DESC) {
-                    id
-                }
-            }`
-        },
-        {
-            next: async (data: any) => {
-                await manageOrdersChange(data, marketId);
-            },
-            error: (error : any) => {
-                console.error('Order subscription error:', error);
-            }
-        });
+    previousBlockHeight = query.squidStatus.height;
+  }, 1000);
+  return () => {
+    console.log("Unsubscribing from markets");
+  };
+};
 
-    return () => {
-        subscription.unsubscribe();
+const marketSubscriptionMap: Map<string, any> = new Map();
+const manageMarkets = (markets: string[]) => {
+  console.log(markets);
+  markets.forEach((marketId: string) => {
+    if (!marketSubscriptionMap.has(marketId)) {
+      marketSubscriptionMap.set(marketId, subscribeToOrders(marketId));
     }
-}
+  });
+  marketSubscriptionMap.forEach((value: any[], key: string) => {
+    if (Array.isArray(value) && !markets.includes(key)) {
+      value.forEach((unsubscribe: () => void) => {
+        unsubscribe();
+      });
+      marketSubscriptionMap.delete(key);
+    }
+  });
+};
+
+const subscribeToOrders = async (marketId: string) => {
+  console.log(`Subscribing to orders for market ${marketId}`);
+  let previousBlockHeight = 0;
+  setInterval(async () => {
+    const query: OrderData = await queryClient.request(
+      `query markets {
+  orders(limit: 1, orderBy: timestamp_DESC, where: {id_eq: "${marketId}", blockHeight_gte: "${previousBlockHeight}"}) {
+    id
+    blockHeight
+  }
+  squidStatus {
+    height
+  }
+}`
+    );
+
+    if (query.orders.length > 0) {
+      manageMarkets(query.orders.map((item: any) => item.id));
+    }
+
+    previousBlockHeight = query.squidStatus.height;
+  }, 1000);
+
+  return () => {};
+};
 const getOrderBookOverlap = async (marketId: string) => {
-    const cheapestShortOrder = await queryClient.request(
-            `query orders {
+  const cheapestShortOrder = await queryClient.request(
+    `query orders {
                 orders(
                     where: {
                         market: { id_eq: "${marketId}" },
@@ -86,11 +87,11 @@ const getOrderBookOverlap = async (marketId: string) => {
                     price
                 }
             }`
-        )
-        
-        console.log(`${marketId} | Cheapest short order: `, cheapestShortOrder);
-        const mostExpensiveLongOrder = await queryClient.request( 
-            `query orders {
+  );
+
+  console.log(`${marketId} | Cheapest short order: `, cheapestShortOrder);
+  const mostExpensiveLongOrder = await queryClient.request(
+    `query orders {
                 orders(
                     where: {
                         market: { id_eq: "${marketId}" },
@@ -103,11 +104,17 @@ const getOrderBookOverlap = async (marketId: string) => {
                     price
                 }
             }`
-        )
-        
-        console.log(`${marketId} | Most expensive long order:  `, mostExpensiveLongOrder);
-        if(mostExpensiveLongOrder !== undefined && cheapestShortOrder !== undefined) {	
-            return await queryClient.request(`
+  );
+
+  console.log(
+    `${marketId} | Most expensive long order:  `,
+    mostExpensiveLongOrder
+  );
+  if (
+    mostExpensiveLongOrder !== undefined &&
+    cheapestShortOrder !== undefined
+  ) {
+    return await queryClient.request(`
                 query orders {
                     orders(
                         where: {
@@ -125,49 +132,64 @@ const getOrderBookOverlap = async (marketId: string) => {
                         who
                     }
                 }
-            `)
-        } else { return undefined; }
-}
+            `);
+  } else {
+    return undefined;
+  }
+};
 
 const manageOrdersChange = async (data: any, marketId: string) => {
-    console.log(`${marketId} | Order change detected`);
-    const overlappingOrders = await getOrderBookOverlap(marketId); 
-    if(overlappingOrders) {
-        await manageOrders((overlappingOrders as any).orders, marketId);
-    }
-}
+  console.log(`${marketId} | Order change detected`);
+  const overlappingOrders = await getOrderBookOverlap(marketId);
+  if (overlappingOrders) {
+    await manageOrders((overlappingOrders as any).orders, marketId);
+  }
+};
 
-const manageOrders = async (values: { id: string, price: bigint, who: string, side: string }[], marketId: string) => {
+const manageOrders = async (
+  values: { id: string; price: bigint; who: string; side: string }[],
+  marketId: string
+) => {
+  const orders = values.map((value) => {
+    return new Order(value.id, value.price, value.who, value.side);
+  });
 
-    const orders = values.map(value => { 
-        return new Order(value.id, value.price, value.who, value.side) 
-    });
+  const sortedLongOrderCollection = getOrdersPerSideSortedByPrice(
+    orders,
+    "LONG"
+  );
+  const sortedShortOrderCollection = getOrdersPerSideSortedByPrice(
+    orders,
+    "SHORT"
+  );
 
-    const sortedLongOrderCollection = getOrdersPerSideSortedByPrice(orders, 'LONG');
-    const sortedShortOrderCollection = getOrdersPerSideSortedByPrice(orders, 'SHORT');
-  
-    for(const nextLong of sortedLongOrderCollection) {
-        for(const shortOrder of sortedShortOrderCollection) {
-            if (
-              shortOrder.who !== nextLong.who &&
-              Number(shortOrder.price) <= Number(nextLong.price)
-            ) {
-              console.log(nextLong);
-              try {
-                await createPosition(marketId, shortOrder.id, nextLong.id);
-              } catch (error) {
-                console.error(error);
-                process.exit(0);
-              }
-            }
+  for (const nextLong of sortedLongOrderCollection) {
+    for (const shortOrder of sortedShortOrderCollection) {
+      if (
+        shortOrder.who !== nextLong.who &&
+        Number(shortOrder.price) <= Number(nextLong.price)
+      ) {
+        console.log(nextLong);
+        try {
+          await createPosition(marketId, shortOrder.id, nextLong.id);
+        } catch (error) {
+          console.error(error);
+          process.exit(0);
         }
+      }
     }
-}
+  }
+};
 
-const getOrdersPerSideSortedByPrice = (orders: Order[], side: string) : Set<Order> => {
-    return new Set(orders
-        .filter(order => order.side === side)
-        .sort((a : Order, b : Order) => { 
-            return a.price.toString().localeCompare(b.price.toString());
-        }));
-}
+const getOrdersPerSideSortedByPrice = (
+  orders: Order[],
+  side: string
+): Set<Order> => {
+  return new Set(
+    orders
+      .filter((order) => order.side === side)
+      .sort((a: Order, b: Order) => {
+        return a.price.toString().localeCompare(b.price.toString());
+      })
+  );
+};
