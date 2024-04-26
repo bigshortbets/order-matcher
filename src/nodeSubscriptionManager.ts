@@ -9,7 +9,7 @@ export const subscribeToMarkets = async () => {
   setInterval(async () => {
     const query: MarketData = await queryClient.request(
       `query markets {
-  markets(where: {blockHeight_gte: ${previousBlockHeight}}) {
+  markets(where: {blockHeight_gt: ${previousBlockHeight}}) {
     id
   }
   squidStatus {
@@ -52,7 +52,7 @@ const subscribeToOrders = async (marketId: string) => {
   setInterval(async () => {
     const query: OrderData = await queryClient.request(
       `query markets {
-  orders(limit: 1, orderBy: timestamp_DESC, where: {id_eq: "${marketId}", blockHeight_gte: "${previousBlockHeight}"}) {
+  orders(limit: 1, orderBy: timestamp_DESC, where: {id_eq: "${marketId}", blockHeight_gt: "${previousBlockHeight}"}) {
     id
   }
   squidStatus {
