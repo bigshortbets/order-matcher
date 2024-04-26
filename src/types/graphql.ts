@@ -1,6 +1,5 @@
 type Market = {
   id: string;
-  blockHeight: string;
 };
 type BlockHeight = {
   height: number;
@@ -12,7 +11,6 @@ export type MarketData = {
 
 type Order = {
   id: string;
-  blockHeight: string;
 };
 
 export type OrderData = {

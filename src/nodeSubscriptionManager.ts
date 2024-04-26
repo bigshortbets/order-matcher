@@ -11,7 +11,6 @@ export const subscribeToMarkets = async () => {
       `query markets {
   markets(where: {blockHeight_gte: ${previousBlockHeight}}) {
     id
-    blockHeight
   }
   squidStatus {
     height
@@ -55,7 +54,6 @@ const subscribeToOrders = async (marketId: string) => {
       `query markets {
   orders(limit: 1, orderBy: timestamp_DESC, where: {id_eq: "${marketId}", blockHeight_gte: "${previousBlockHeight}"}) {
     id
-    blockHeight
   }
   squidStatus {
     height
@@ -64,7 +62,7 @@ const subscribeToOrders = async (marketId: string) => {
     );
 
     if (query.orders.length > 0) {
-      manageMarkets(query.orders.map((item: any) => item.id));
+      await manageOrdersChange(marketId);
     }
 
     previousBlockHeight = query.squidStatus.height;
@@ -138,7 +136,7 @@ const getOrderBookOverlap = async (marketId: string) => {
   }
 };
 
-const manageOrdersChange = async (data: any, marketId: string) => {
+const manageOrdersChange = async (marketId: string) => {
   console.log(`${marketId} | Order change detected`);
   const overlappingOrders = await getOrderBookOverlap(marketId);
   if (overlappingOrders) {
