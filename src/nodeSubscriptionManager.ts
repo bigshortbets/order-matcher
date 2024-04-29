@@ -17,7 +17,7 @@ export const subscribeToMarkets = async () => {
   }
 }`
     );
-    if (query.markets.length > 0) {
+    if (query.markets && query.markets.length > 0) {
       manageMarkets(query.markets.map((item: any) => item.id));
     }
 
@@ -61,7 +61,7 @@ const subscribeToOrders = async (marketId: string) => {
 }`
     );
 
-    if (query.orders.length > 0) {
+    if (query.orders && query.orders.length > 0) {
       await manageOrdersChange(marketId);
     }
 
