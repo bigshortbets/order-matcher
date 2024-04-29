@@ -46,24 +46,23 @@ const manageMarkets = (markets : string[]) => {
 const subscribeToOrders = async (marketId: string) => {
   console.log(`Subscribing to orders for market ${marketId}`);
   let previousBlockHeight = 0;
-  setInterval(async () => {
-    const query: OrderData = await queryClient.request(
-      `query markets {
-  orders(limit: 1, orderBy: timestamp_DESC, where: {id_eq: "${marketId}", blockHeight_gt: "${previousBlockHeight}"}) {
-    id
-  }
-  squidStatus {
-    height
-  }
-}`
-    );
 
-    if (query.orders && query.orders.length > 0) {
-      await manageOrdersChange(marketId);
-    }
+  const query: OrderData = await queryClient.request(
+    `query markets {
+        orders(limit: 1, where: {id_eq: "${marketId}", blockHeight_gt: "${previousBlockHeight}", status_eq: ACTIVE}) {
+          id
+        }
+        squidStatus {
+          height
+        }
+      }`
+  );
 
-    previousBlockHeight = query.squidStatus.height;
-  }, 1000);
+  if (query.orders && query.orders.length > 0) {
+    await manageOrdersChange(marketId);
+  }
+
+  previousBlockHeight = query.squidStatus.height;
 
   return () => {};
 };
