@@ -1,34 +1,32 @@
-import { Order } from './types/Order';
-import { createPosition } from './positionCreator';
-import {subClient, queryClient} from './processorSubscriptionClient';
+import { Order } from "./types/Order";
+import { createPosition } from "./positionCreator";
+import { queryClient } from "./processorSubscriptionClient";
+import { MarketData, OrderData } from "./types/graphql";
 
-export const subscribeToMarkets = () => {
-    console.log("Subscribing to markets");
-    const subscription = subClient.subscribe({
-        query: `
-            subscription markets {
-                markets {
-                    id
-                }
-            }`
-    },
-    {
-        next: (data: any) => {
-            manageMarkets(data.data.markets.map((item : any ) => item.id));
-        },
-        error: (error : any) => {
-            console.error('Market subscription error:', error);
-        },
-        complete: () => {
-            console.log('Market subscription complete');
-        },
-    });
+export const subscribeToMarkets = async () => {
+  console.log("Subscribing to markets");
+  let previousBlockHeight = 0;
+  setInterval(async () => {
+    const query: MarketData = await queryClient.request(
+      `query markets {
+  markets(where: {blockHeight_gt: ${previousBlockHeight}}) {
+    id
+  }
+  squidStatus {
+    height
+  }
+}`
+    );
+    if (query.markets.length > 0) {
+      manageMarkets(query.markets.map((item: any) => item.id));
+    }
 
-    return () => {
-        console.log("Unsubscribing from markets");
-        subscription.unsubscribe();
-    };
-}
+    previousBlockHeight = query.squidStatus.height;
+  }, 1000);
+  return () => {
+    console.log("Unsubscribing from markets");
+  };
+};
 
 const marketSubscriptionMap : Map<string, any> = new Map();
 const manageMarkets = (markets : string[]) => {
@@ -48,29 +46,30 @@ const manageMarkets = (markets : string[]) => {
     });
 }
 
-const subscribeToOrders = (marketId: string) => {
-    console.log(`Subscribing to orders for market ${marketId}`);
-    const subscription = subClient.subscribe({
-        query: 
-            `subscription orders {
-                orders(limit: 1, where: {market: {id_eq: "${marketId}"}}, orderBy: timestamp_DESC) {
-                    id
-                }
-            }`
-        },
-        {
-            next: async (data: any) => {
-                await manageOrdersChange(data, marketId);
-            },
-            error: (error : any) => {
-                console.error('Order subscription error:', error);
-            }
-        });
+const subscribeToOrders = async (marketId: string) => {
+  console.log(`Subscribing to orders for market ${marketId}`);
+  let previousBlockHeight = 0;
+  setInterval(async () => {
+    const query: OrderData = await queryClient.request(
+      `query markets {
+  orders(limit: 1, orderBy: timestamp_DESC, where: {id_eq: "${marketId}", blockHeight_gt: "${previousBlockHeight}"}) {
+    id
+  }
+  squidStatus {
+    height
+  }
+}`
+    );
 
-    return () => {
-        subscription.unsubscribe();
+    if (query.orders.length > 0) {
+      await manageOrdersChange(marketId);
     }
-}
+
+    previousBlockHeight = query.squidStatus.height;
+  }, 1000);
+
+  return () => {};
+};
 const getOrderBookOverlap = async (marketId: string) => {
     const cheapestShortOrder = await queryClient.request(
             `query orders {
@@ -129,7 +128,7 @@ const getOrderBookOverlap = async (marketId: string) => {
         } else { return undefined; }
 }
 
-const manageOrdersChange = async (data: any, marketId: string) => {
+const manageOrdersChange = async (marketId: string) => {
     console.log(`${marketId} | Order change detected`);
     const overlappingOrders = await getOrderBookOverlap(marketId); 
     if(overlappingOrders) {
