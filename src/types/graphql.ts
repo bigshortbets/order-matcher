@@ -11,6 +11,7 @@ export type MarketData = {
 
 type Order = {
   id: string;
+  market: Market;
 };
 
 export type OrderData = {

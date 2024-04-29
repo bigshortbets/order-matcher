@@ -1,71 +1,39 @@
 import { Order } from "./types/Order";
 import { createPosition } from "./positionCreator";
 import { queryClient } from "./processorSubscriptionClient";
-import { MarketData, OrderData } from "./types/graphql";
+import { OrderData } from "./types/graphql";
 
-export const subscribeToMarkets = async () => {
-  console.log("Subscribing to markets");
+export const subscribeToOrders = async () => {
+  console.log(`Subscribing to orders`);
   let previousBlockHeight = 0;
-  setInterval(async () => {
-    const query: MarketData = await queryClient.request(
+  while(true) {
+    const query: OrderData = await queryClient.request(
       `query markets {
-  markets(where: {blockHeight_gt: ${previousBlockHeight}}) {
-    id
-  }
-  squidStatus {
-    height
-  }
-}`
+          orders(limit: 1, where: {blockHeight_gt: "${previousBlockHeight}", status_eq: ACTIVE}) {
+            id
+            market {
+              id
+            }
+          }
+          squidStatus {
+            height
+          }
+        }`
     );
-    if (query.markets && query.markets.length > 0) {
-      manageMarkets(query.markets.map((item: any) => item.id));
+    
+    if (query.orders && query.orders.length > 0) {
+      await manageOrdersChange(query.orders[0].market.id);
     }
 
     previousBlockHeight = query.squidStatus.height;
-  }, 1000);
-  return () => {
-    console.log("Unsubscribing from markets");
-  };
+    await sleep(1000);
+  }
 };
 
-const marketSubscriptionMap : Map<string, any> = new Map();
-const manageMarkets = (markets : string[]) => {
-    console.log(markets)
-    markets.forEach((marketId: string) => {
-        if (!marketSubscriptionMap.has(marketId)) {
-            marketSubscriptionMap.set(marketId, subscribeToOrders(marketId))
-        }
-    });
-    marketSubscriptionMap.forEach((value: any[], key: string) => {
-        if (Array.isArray(value) && !markets.includes(key)) {
-          marketSubscriptionMap.delete(key);
-        }
-    });
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const subscribeToOrders = async (marketId: string) => {
-  console.log(`Subscribing to orders for market ${marketId}`);
-  let previousBlockHeight = 0;
-
-  const query: OrderData = await queryClient.request(
-    `query markets {
-        orders(limit: 1, where: {id_eq: "${marketId}", blockHeight_gt: "${previousBlockHeight}", status_eq: ACTIVE}) {
-          id
-        }
-        squidStatus {
-          height
-        }
-      }`
-  );
-
-  if (query.orders && query.orders.length > 0) {
-    await manageOrdersChange(marketId);
-  }
-
-  previousBlockHeight = query.squidStatus.height;
-
-  return () => {};
-};
 const getOrderBookOverlap = async (marketId: string) => {
     const cheapestShortOrder = await queryClient.request(
             `query orders {
