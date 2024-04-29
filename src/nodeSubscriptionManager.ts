@@ -6,11 +6,10 @@ import { OrderData } from "./types/graphql";
 export const subscribeToOrders = async () => {
   console.log(`Subscribing to orders`);
   let previousBlockHeight = 0;
-  while(true) {
-    const query: OrderData = await queryClient.request(
-      `query markets {
-          orders(limit: 1, where: {blockHeight_gt: "${previousBlockHeight}", status_eq: ACTIVE}) {
-            id
+    while (true) {
+      const query: OrderData = await queryClient.request(
+        `query markets {
+          orders(where: {blockHeight_gt: "${previousBlockHeight}", status_eq: ACTIVE}) {
             market {
               id
             }
@@ -19,15 +18,20 @@ export const subscribeToOrders = async () => {
             height
           }
         }`
-    );
-    
-    if (query.orders && query.orders.length > 0) {
-      await manageOrdersChange(query.orders[0].market.id);
-    }
+      );
+      const marketIds = new Set<string>();
 
-    previousBlockHeight = query.squidStatus.height;
-    await sleep(1000);
-  }
+      query.orders.forEach((order) => {
+        marketIds.add(order.market.id);
+      });
+
+      for (const marketId of marketIds) {
+        await manageOrdersChange(marketId);
+      }
+
+      previousBlockHeight = query.squidStatus.height;
+      await sleep(1000);
+    }
 };
 
 async function sleep(ms: number): Promise<void> {

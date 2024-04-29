@@ -4,13 +4,8 @@ type Market = {
 type BlockHeight = {
   height: number;
 };
-export type MarketData = {
-  markets: Market[];
-  squidStatus: BlockHeight;
-};
 
 type Order = {
-  id: string;
   market: Market;
 };
 
